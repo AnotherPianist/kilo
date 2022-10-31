@@ -44,6 +44,7 @@ typedef struct editorRow {
 
 struct editorConfig {
   int cursorX, cursorY;
+  int renderX;
   int rowOffset, colOffset;
   int screenRows, screenCols;
   int numRows;
@@ -165,6 +166,16 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** row operations ***/
 
+int editorRowCxToRx(editorRow *row, int cursorX) {
+  int renderX = 0;
+  for (int j = 0; j < cursorX; j++) {
+    if (row->chars[j] == '\t')
+      renderX += (KILO_TAB_STOP - 1) - (renderX % KILO_TAB_STOP);
+    renderX++;
+  }
+  return renderX;
+}
+
 void editorUpdateRow(editorRow *row) {
   int tabs = 0;
   for (int j = 0; j < row->size; j++)
@@ -246,14 +257,18 @@ void abFree(struct appendBuffer *ab) {
 /*** output ***/
 
 void editorScroll() {
+  E.renderX = 0;
+  if (E.cursorY < E.numRows)
+    E.renderX = editorRowCxToRx(&E.row[E.cursorY], E.cursorX);
+
   if (E.cursorY < E.rowOffset)
     E.rowOffset = E.cursorY;
   if (E.cursorY >= E.rowOffset + E.screenRows)
     E.rowOffset = E.cursorY - E.screenRows + 1;
-  if (E.cursorX < E.colOffset)
-    E.colOffset = E.cursorX;
-  if (E.cursorX >= E.colOffset + E.screenCols)
-    E.colOffset = E.cursorX - E.screenCols + 1;
+  if (E.renderX < E.colOffset)
+    E.colOffset = E.renderX;
+  if (E.renderX >= E.colOffset + E.screenCols)
+    E.colOffset = E.renderX - E.screenCols + 1;
 }
 
 void editorDrawRows(struct appendBuffer *ab) {
@@ -301,7 +316,7 @@ void editorRefreshScreen() {
 
   char buf[32];
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cursorY - E.rowOffset) + 1,
-                                            (E.cursorX - E.colOffset) + 1);
+                                            (E.renderX - E.colOffset) + 1);
   abAppend(&ab, buf, strlen(buf));
 
   abAppend(&ab, "\x1b[?25h", 6);
@@ -383,6 +398,7 @@ void editorProcessKeypress() {
 
 void initEditor() {
   E.cursorX = 0, E.cursorY = 0;
+  E.renderX = 0;
   E.rowOffset = 0, E.colOffset = 0;
   E.numRows = 0;
   E.row = NULL;
