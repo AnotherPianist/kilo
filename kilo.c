@@ -192,16 +192,16 @@ void editorRefreshScreen() {
 void editorMoveCursor(int key) {
   switch (key) {
     case ARROW_LEFT:
-      E.cursorX--;
+      if (E.cursorX != 0) E.cursorX--;
       break;
     case ARROW_RIGHT:
-      E.cursorX++;
+      if (E.cursorX != E.screenCols - 1) E.cursorX++;
       break;
     case ARROW_UP:
-      E.cursorY--;
+      if (E.cursorY != 0) E.cursorY--;
       break;
     case ARROW_DOWN:
-      E.cursorY++;
+      if (E.cursorY != E.screenRows - 1) E.cursorY++;
       break;
   }
 }
