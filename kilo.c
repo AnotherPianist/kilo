@@ -284,12 +284,14 @@ void editorRefreshScreen() {
 /*** input ***/
 
 void editorMoveCursor(int key) {
+  editorRow *row = (E.cursorY >= E.numRows) ? NULL : &E.row[E.cursorY];
+
   switch (key) {
     case ARROW_LEFT:
       if (E.cursorX != 0) E.cursorX--;
       break;
     case ARROW_RIGHT:
-      E.cursorX++;
+      if (row && E.cursorX < row->size) E.cursorX++;
       break;
     case ARROW_UP:
       if (E.cursorY != 0) E.cursorY--;
