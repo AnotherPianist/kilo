@@ -300,6 +300,10 @@ void editorMoveCursor(int key) {
       if (E.cursorY < E.numRows) E.cursorY++;
       break;
   }
+
+  row = (E.cursorY >= E.numRows) ? NULL : &E.row[E.cursorY];
+  int rowLen = row ? row->size : 0;
+  if (E.cursorX > rowLen) E.cursorX = rowLen;
 }
 
 void editorProcessKeypress() {
