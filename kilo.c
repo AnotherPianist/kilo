@@ -373,7 +373,8 @@ void editorProcessKeypress() {
       break;
 
     case END_KEY:
-      E.cursorX = E.screenCols - 1;
+      if (E.cursorY < E.numRows)
+        E.cursorX = E.row[E.cursorY].size;
       break;
 
     case PAGE_UP:
