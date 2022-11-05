@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -59,6 +60,10 @@ struct editorConfig {
 };
 
 struct editorConfig E;
+
+/*** prototypes ***/
+
+void editorSetStatusMessage(const char *fmt, ...);
 
 /*** terminal ***/
 
@@ -239,6 +244,24 @@ void editorInsertChar(int c) {
 
 /*** file i/o ***/
 
+char *editorRowsToString(int *bufLen) {
+  int totLen = 0;
+  for (int i = 0; i < E.numRows; i++)
+    totLen += E.row[i].size + 1;
+  *bufLen = totLen;
+
+  char *buf = malloc(totLen);
+  char *p = buf;
+  for (int i = 0; i < E.numRows; i++) {
+    memcpy(p, E.row[i].chars, E.row[i].size);
+    p += E.row[i].size;
+    *p = '\n';
+    p++;
+  }
+
+  return buf;
+}
+
 void editorOpen(char *filename) {
   free(E.filename);
   E.filename = strdup(filename);
@@ -257,6 +280,29 @@ void editorOpen(char *filename) {
   }
   free(line);
   fclose(fp);
+}
+
+void editorSave() {
+  if (E.filename == NULL) return;
+
+  int len;
+  char *buf = editorRowsToString(&len);
+
+  int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+  if (fd != -1) {
+    if (ftruncate(fd, len) != -1) {
+      if (write(fd, buf, len) == len) {
+        close(fd);
+        free(buf);
+        editorSetStatusMessage("%d bytes written to disk", len);
+        return;
+      }
+    }
+    close(fd);
+  }
+
+  free(buf);
+  editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
 }
 
 /*** append buffer ***/
@@ -431,10 +477,15 @@ void editorProcessKeypress() {
     case '\r':
       /* TODO */
       break;
+
     case CTRL_KEY('q'):
       write(STDOUT_FILENO, "\x1b[2J", 4);
       write(STDOUT_FILENO, "\x1b[H", 3);
       exit(0);
+      break;
+
+    case CTRL_KEY('s'):
+      editorSave();
       break;
 
     case HOME_KEY:
@@ -476,7 +527,7 @@ void editorProcessKeypress() {
       break;
 
     case CTRL_KEY('l'):
-    case 'x1b':
+    case '\x1b':
       break;
 
     default:
@@ -507,7 +558,7 @@ int main(int argc, char *argv[]) {
   if (argc >= 2)
     editorOpen(argv[1]);
 
-  editorSetStatusMessage("HELP: Ctrl-Q = quit");
+  editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
   while (1) {
     editorRefreshScreen();
