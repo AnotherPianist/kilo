@@ -415,9 +415,19 @@ void editorFindCallback(char *query, int key) {
 
 
 void editorFind() {
+  int savedCursorX = E.cursorX, savedCursorY = E.cursorY;
+  int savedColOffset = E.colOffset, savedRowOffset = E.rowOffset;
+
   char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
 
-  if (query) free(query);
+  if (query)
+    free(query);
+  else {
+    E.cursorX = savedCursorX;
+    E.cursorY = savedCursorY;
+    E.colOffset = savedColOffset;
+    E.rowOffset = savedRowOffset;
+  }
 }
 
 /*** append buffer ***/
