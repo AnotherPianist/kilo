@@ -398,14 +398,33 @@ void editorSave() {
 /*** find ***/
 
 void editorFindCallback(char *query, int key) {
-  if (key == '\r' || key == '\x1b')
-    return;
+  static int last_match = -1, direction = 1;
 
+  if (key == '\r' || key == '\x1b') {
+    last_match = -1;
+    direction = 1;
+    return;
+  } else if (key == ARROW_RIGHT || key == ARROW_DOWN)
+    direction = 1;
+  else if (key == ARROW_LEFT || key == ARROW_UP)
+    direction = -1;
+  else {
+    last_match = -1;
+    direction = 1;
+  }
+
+  if (last_match == -1) direction = 1;
+  int current = last_match;
   for (int i = 0; i < E.numRows; i++) {
-    editorRow *row = &E.row[i];
+    current += direction;
+    if (current == -1) current = E.numRows - 1;
+    else if (current == E.numRows) current = 0;
+
+    editorRow *row = &E.row[current];
     char *match = strstr(row->render, query);
     if (match) {
-      E.cursorY = i;
+      last_match = current;
+      E.cursorY = current;
       E.cursorX = editorRowRxToCx(row, match - row->render);
       E.rowOffset = E.numRows;
       break;
@@ -418,7 +437,8 @@ void editorFind() {
   int savedCursorX = E.cursorX, savedCursorY = E.cursorY;
   int savedColOffset = E.colOffset, savedRowOffset = E.rowOffset;
 
-  char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+  char *query = editorPrompt("Search: %s (Use ESC/Arrows/Enter)",
+                             editorFindCallback);
 
   if (query)
     free(query);
