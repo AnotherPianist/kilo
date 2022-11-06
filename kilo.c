@@ -490,8 +490,7 @@ void editorScroll() {
 }
 
 void editorDrawRows(struct appendBuffer *ab) {
-  int y;
-  for (y = 0; y < E.screenRows; y++) {
+  for (int y = 0; y < E.screenRows; y++) {
     int fileRow = y + E.rowOffset;
     if (fileRow >= E.numRows) {
       if (E.numRows == 0 && y == E.screenRows / 3) {
@@ -513,7 +512,15 @@ void editorDrawRows(struct appendBuffer *ab) {
       int len = E.row[fileRow].renderSize - E.colOffset;
       if (len < 0) len = 0;
       if (len > E.screenCols) len = E.screenCols;
-      abAppend(ab, &E.row[fileRow].render[E.colOffset], len);
+      char *c = &E.row[fileRow].render[E.colOffset];
+      for (int i = 0; i < len; i++) {
+        if (isdigit(c[i])) {
+          abAppend(ab, "\x1b[31m", 5);
+          abAppend(ab, &c[i], 1);
+          abAppend(ab, "\x1b[39m", 5);
+        } else
+          abAppend(ab, &c[i], 1);
+      }
     }
 
     abAppend(ab, "\x1b[K", 3);
