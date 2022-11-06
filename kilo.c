@@ -188,13 +188,32 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** syntax highlighting ***/
 
+int isSeparator(int c) {
+  return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
+
 void editorUpdateSyntax(editorRow *row) {
   row->highlight = realloc(row->highlight, row->renderSize);
   memset(row->highlight, HL_NORMAL, row->renderSize);
 
-  for (int i = 0; i < row->renderSize; i++)
-    if (isdigit(row->render[i]))
+  int prevSeparator = 1;
+
+  int i = 0;
+  while (i < row->renderSize) {
+    char c = row->render[i];
+    unsigned char prevHighlight = (i > 0) ? row->highlight[i - 1] : HL_NORMAL;
+
+    if ((isdigit(c) && (prevSeparator || prevHighlight == HL_NUMBER)) ||
+        (c == '.' && prevHighlight == HL_NUMBER)) {
       row->highlight[i] = HL_NUMBER;
+      i++;
+      prevSeparator = 0;
+      continue;
+    }
+
+    prevSeparator = isSeparator(c);
+    i++;
+  }
 }
 
 int editorSyntaxToColor(int highlight) {
