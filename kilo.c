@@ -41,6 +41,8 @@ enum editorKey {
 enum editorHighlight {
   HL_NORMAL = 0,
   HL_COMMENT,
+  HL_KEYWORD1,
+  HL_KEYWORD2,
   HL_STRING,
   HL_NUMBER,
   HL_MATCH
@@ -54,6 +56,7 @@ enum editorHighlight {
 struct editorSyntax {
   char *filetype;
   char **filematch;
+  char **keywords;
   char *singleLineCommentStart;
   int flags;
 };
@@ -86,11 +89,19 @@ struct editorConfig E;
 /*** filetypes ***/
 
 char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL };
+char *C_HL_keywords[] = {
+  "switch", "if", "while", "for", "break", "continue", "return", "else",
+  "struct", "union", "typedef", "static", "enum", "class", "case",
+
+  "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+  "void|", NULL
+};
 
 struct editorSyntax HLDB[] = {
   {
     "c",
     C_HL_extensions,
+    C_HL_keywords,
     "//",
     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
   },
@@ -226,6 +237,8 @@ void editorUpdateSyntax(editorRow *row) {
 
   if (E.syntax == NULL) return;
 
+  char **keywords = E.syntax->keywords;
+
   char *scs = E.syntax->singleLineCommentStart;
   int scsLen = scs ? strlen(scs) : 0;
 
@@ -276,6 +289,26 @@ void editorUpdateSyntax(editorRow *row) {
       }
     }
 
+    if (prevSeparator) {
+      int j;
+      for (j = 0; keywords[j]; j++) {
+        int keywordLen = strlen(keywords[j]);
+        int keyword2 = keywords[j][keywordLen - 1] == '|';
+        if (keyword2) keywordLen--;
+
+        if (!strncmp(&row->render[i], keywords[j], keywordLen) &&
+            isSeparator(row->render[i + keywordLen])) {
+          memset(&row->highlight[i], keyword2 ? HL_KEYWORD2 : HL_KEYWORD1, keywordLen);
+          i += keywordLen;
+          break;
+        }
+      }
+      if (keywords[j] != NULL) {
+        prevSeparator = 0;
+        continue;
+      }
+    }
+
     prevSeparator = isSeparator(c);
     i++;
   }
@@ -284,6 +317,8 @@ void editorUpdateSyntax(editorRow *row) {
 int editorSyntaxToColor(int highlight) {
   switch (highlight) {
     case HL_COMMENT: return 36;
+    case HL_KEYWORD1: return 33;
+    case HL_KEYWORD2: return 32;
     case HL_STRING: return 35;
     case HL_NUMBER: return 31;
     case HL_MATCH: return 34;
