@@ -5,7 +5,7 @@
 #define _GNU_SOURCE
 
 #include <ctype.h>
-#include <errno.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -710,7 +710,17 @@ void editorDrawRows(struct appendBuffer *ab) {
       unsigned char *highlight = &E.row[fileRow].highlight[E.colOffset];
       int currentColor = -1;
       for (int i = 0; i < len; i++) {
-        if (highlight[i] == HL_NORMAL) {
+        if (iscntrl(c[i])) {
+          char sym = (c[i] <= 26) ? '@' + c[i] : '?';
+          abAppend(ab, "\x1b[7m", 4);
+          abAppend(ab, &sym, 1);
+          abAppend(ab, "\x1b[m", 3);
+          if (currentColor != -1) {
+            char buf[16];
+            int colorLen = snprintf(buf, sizeof(buf), "\x1b[%dm", currentColor);
+            abAppend(ab, buf, colorLen);
+          }
+        } else if (highlight[i] == HL_NORMAL) {
           if (currentColor != -1) {
             abAppend(ab, "\x1b[39m", 5);
             currentColor = -1;
