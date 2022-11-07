@@ -44,7 +44,15 @@ enum editorHighlight {
   HL_MATCH
 };
 
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+
 /*** data ***/
+
+struct editorSyntax {
+  char *filetype;
+  char **filematch;
+  int flags;
+};
 
 typedef struct editorRow {
   int size;
@@ -65,10 +73,25 @@ struct editorConfig {
   char *filename;
   char statusMsg[80];
   time_t statusMsgTime;
+  struct editorSyntax *syntax;
   struct termios orig_termios;
 };
 
 struct editorConfig E;
+
+/*** filetypes ***/
+
+char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL };
+
+struct editorSyntax HLDB[] = {
+  {
+    "c",
+    C_HL_extensions,
+    HL_HIGHLIGHT_NUMBERS
+  },
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** prototypes ***/
 
@@ -196,6 +219,8 @@ void editorUpdateSyntax(editorRow *row) {
   row->highlight = realloc(row->highlight, row->renderSize);
   memset(row->highlight, HL_NORMAL, row->renderSize);
 
+  if (E.syntax == NULL) return;
+
   int prevSeparator = 1;
 
   int i = 0;
@@ -203,12 +228,14 @@ void editorUpdateSyntax(editorRow *row) {
     char c = row->render[i];
     unsigned char prevHighlight = (i > 0) ? row->highlight[i - 1] : HL_NORMAL;
 
-    if ((isdigit(c) && (prevSeparator || prevHighlight == HL_NUMBER)) ||
-        (c == '.' && prevHighlight == HL_NUMBER)) {
-      row->highlight[i] = HL_NUMBER;
-      i++;
-      prevSeparator = 0;
-      continue;
+    if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+      if ((isdigit(c) && (prevSeparator || prevHighlight == HL_NUMBER)) ||
+          (c == '.' && prevHighlight == HL_NUMBER)) {
+        row->highlight[i] = HL_NUMBER;
+        i++;
+        prevSeparator = 0;
+        continue;
+      }
     }
 
     prevSeparator = isSeparator(c);
@@ -221,6 +248,31 @@ int editorSyntaxToColor(int highlight) {
     case HL_NUMBER: return 31;
     case HL_MATCH: return 34;
     default: return 37;
+  }
+}
+
+void editorSelectSyntaxHighlight() {
+  E.syntax = NULL;
+  if (E.filename == NULL) return;
+
+  char *ext = strrchr(E.filename, '.');
+
+  for (unsigned int i = 0; i < HLDB_ENTRIES; i++) {
+    struct editorSyntax *s = &HLDB[i];
+    unsigned int j = 0;
+    while (s->filematch[j]) {
+      int isExt = (s->filematch[j][0] == '.');
+      if ((isExt && ext && !strcmp(ext, s->filematch[j])) ||
+          (!isExt && strstr(E.filename, s->filematch[j]))) {
+        E.syntax = s;
+
+        for (int fileRow = 0; fileRow < E.numRows; fileRow++)
+          editorUpdateSyntax(&E.row[fileRow]);
+
+        return;
+      }
+      j++;
+    }
   }
 }
 
@@ -397,6 +449,8 @@ void editorOpen(char *filename) {
   free(E.filename);
   E.filename = strdup(filename);
 
+  editorSelectSyntaxHighlight();
+
   FILE *fp = fopen(filename, "r");
   if (!fp) die("fopen");
 
@@ -421,6 +475,7 @@ void editorSave() {
       editorSetStatusMessage("Save aborted");
       return;
     }
+    editorSelectSyntaxHighlight();
   }
 
   int len;
@@ -607,17 +662,17 @@ void editorDrawRows(struct appendBuffer *ab) {
 
 void editorDrawStatusBar(struct appendBuffer *ab) {
   abAppend(ab, "\x1b[7m", 4);
-  char status[80], rStatus[80];
+  char status[80], renderStatus[80];
   int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
       E.filename ? E.filename : "[No Name]", E.numRows,
       E.dirty ? "(modified)" : "");
-  int rLen = snprintf(rStatus, sizeof(rStatus), "%d/%d",
-      E.cursorY + 1, E.numRows);
+  int renderLen = snprintf(renderStatus, sizeof(renderStatus), "%s | %d/%d",
+      E.syntax ? E.syntax->filetype : "no filetype", E.cursorY + 1, E.numRows);
   if (len > E.screenCols) len = E.screenCols;
   abAppend(ab, status, len);
   while (len < E.screenCols) {
-    if (E.screenCols - len == rLen) {
-      abAppend(ab, rStatus, rLen);
+    if (E.screenCols - len == renderLen) {
+      abAppend(ab, renderStatus, renderLen);
       break;
     } else {
       abAppend(ab, " ", 1);
@@ -831,6 +886,7 @@ void initEditor() {
   E.filename = NULL;
   E.statusMsg[0] = '\0';
   E.statusMsgTime = 0;
+  E.syntax = NULL;
 
   if (getWindowSize(&E.screenRows, &E.screenCols) == -1) die("getWindowSize");
   E.screenRows -= 2;
